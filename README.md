@@ -621,8 +621,6 @@
             transition: background 0.2s;
         }
 
-        .btn-google { background-color: #ffffff; color: #444; border: 1px solid #ddd; }
-        .btn-google:hover { background-color: #f5f5f5; }
         .btn-phone { background-color: #2ecc71; color: white; border: none; }
         .btn-phone:hover { opacity: 0.9; }
         .btn-email { background-color: #34495e; color: white; border: none; }
@@ -739,6 +737,14 @@
             margin-top: 20px;
             border-bottom: 1px solid #ccc;
             padding-bottom: 5px;
+        }
+
+        /* Style tweaks for rendering Google Button layout neatly */
+        #googleBtnWrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 15px;
+            width: 100%;
         }
 
     </style>
@@ -892,9 +898,9 @@
         <div class="login-container">
             <h3 style="margin-top: 0; margin-bottom: 25px;">Sign In to VS Extractor</h3>
             
-            <button class="login-method-btn btn-google" onclick="executeMockLogin('Google Account')">
-                <span style="font-weight: bold; color: #4285F4;">G</span> Continue with Google
-            </button>
+            <div id="googleBtnWrapper">
+                <div id="realGoogleButton"></div>
+            </div>
             
             <div style="margin: 15px 0; color: gray; font-size: 13px;">OR</div>
             
@@ -952,8 +958,6 @@
             sidebarOpen: false,
             selectedImages: new Set(),
             characterColorData: null,
-            
-            // Selection track configuration states
             activeContextMode: "studio", // "studio" or "archive" tracking
             selectedArchiveFolderId: null 
         };
@@ -1008,6 +1012,7 @@
 
             renderAlbums();
             refreshFolderDisplayBlock();
+            initializeGoogleIdentityPortal();
         });
 
         window.onclick = function(event) {
@@ -1027,6 +1032,53 @@
             if (menu) menu.style.display = 'none';
         }
 
+        // Initialize Real Google Client ID API Integration
+        function initializeGoogleIdentityPortal() {
+            try {
+                google.accounts.id.initialize({
+                    client_id: "961866741288-tvir3u4a19j57t8d498a71207af4pn6p.apps.googleusercontent.com",
+                    callback: handleGoogleAuthCredentialResponse
+                });
+                
+                google.accounts.id.renderButton(
+                    document.getElementById("realGoogleButton"),
+                    { theme: "outline", size: "large", width: "320" }
+                );
+                
+                // Prompts automatic One-Tap prompt implicitly on loading
+                google.accounts.id.prompt(); 
+            } catch (err) {
+                console.error("Google Script Initialization Error:", err);
+            }
+        }
+
+        // Real Google Authentication Response Parser Engine
+        function handleGoogleAuthCredentialResponse(response) {
+            try {
+                // Parse the base64 JWT token from Google securely
+                const base64Url = response.credential.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+
+                const userData = JSON.parse(jsonPayload);
+                
+                alert(`Welcome ${userData.name}! Successfully signed in via Google Account.`);
+                
+                document.getElementById('customSignInBtn').style.display = 'none';
+                const userUI = document.getElementById('userInfo');
+                userUI.innerHTML = `<img src="${userData.picture || 'https://via.placeholder.com/32'}" alt="Profile"> <span>${userData.name}</span>`;
+                userUI.style.display = 'flex';
+                
+                // Route automatically back to workspace main dashboard
+                history.back();
+            } catch (error) {
+                console.error("Google JWT Parsing Failure: ", error);
+                alert("Authentication encountered a token decryption problem.");
+            }
+        }
+
         // Open Multi-Method Login Gateway Interface Page
         function openLoginGateway() {
             document.getElementById('loginGatewayPage').style.display = 'block';
@@ -1043,7 +1095,7 @@
             const userUI = document.getElementById('userInfo');
             userUI.innerHTML = `<img src="https://via.placeholder.com/32" alt="User"> <span>Secure User</span>`;
             userUI.style.display = 'flex';
-            history.back(); // Returns seamlessly to studio
+            history.back(); 
         }
 
         // Sidebar Content View Mechanics
@@ -1183,7 +1235,6 @@
             const card = document.createElement('div');
             card.className = "folder-card";
             
-            // Adjust dynamic display arrows based on expansion states
             const arrowSymbol = folder.isExpanded ? "&uarr;" : "&darr;";
 
             card.innerHTML = `
@@ -1240,7 +1291,7 @@
 
                 card.innerHTML = `
                     <div>
-                        <p class="folder-title"> Bertram 📁 ${folder.name}</p>
+                        <p class="folder-title"> 📁 ${folder.name}</p>
                         <p class="folder-info" style="margin-top:5px;">Archived Track</p>
                     </div>
                     <div class="process-icon-wrap" onclick="toggleArchivedFolderExpansion(event, '${folder.id}')">
@@ -1263,13 +1314,12 @@
             appData.selectedArchiveFolderId = folderId;
             folder.isExpanded = !folder.isExpanded;
 
-            // Close all other expanded grid sets to maintain selection scope context cleanly
             appData.archivedFolders.forEach(f => { if(f.id !== folderId) f.isExpanded = false; });
 
             const titleElement = document.getElementById('archiveGalleryTitle');
             if(folder.isExpanded) {
                 titleElement.style.display = "block";
-                renderGalleryGridEngine('archiveGalleryGrid', folder.frames, false); // Multi selection active
+                renderGalleryGridEngine('archiveGalleryGrid', folder.frames, false);
             } else {
                 titleElement.style.display = "none";
                 document.getElementById('archiveGalleryGrid').innerHTML = "";
@@ -1482,7 +1532,6 @@
             return { bins: colorBins, total: totalPixels };
         }
 
-        // Strict validation engine (checks if signature matching threshold passes high precision limits)
         function isCharacterInFrame(frameCtx, canvasWidth, canvasHeight, charData) {
             if(!charData) return false; 
             const imageData = frameCtx.getImageData(0, 0, canvasWidth, canvasHeight).data;
@@ -1506,7 +1555,6 @@
                     matchScore += Math.min(charRatio, frameRatio);
                 }
             }
-            // Strict high-pass barrier filter. Below 0.18 matching means target character is absent.
             return matchScore >= 0.18; 
         }
 
@@ -1552,7 +1600,6 @@
 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // STRICT CHECK ENGINE LAYER
                 if(isCharacterInFrame(ctx, canvas.width, canvas.height, appData.characterColorData)) {
                     compCtx.drawImage(video, 0, 0, 64, 64);
                     let currentImageData = compCtx.getImageData(0, 0, 64, 64);
